@@ -23,6 +23,10 @@ int Bot_mtbs = 1000; // tempo entre a leitura das mensagens
 long Bot_lasttime; // ultima mensagem lida
 bool Start = false;
 
+//POSSIBILITAR PARAR DE ENVIAR PRO ThingSpeak
+bool controle = true;
+
+
 
 void handleNewMessages(int numNewMessages){
 
@@ -40,6 +44,25 @@ void handleNewMessages(int numNewMessages){
       float umidSolo = sensorUmidadeSolo();
       bot.sendMessage(chat_id, "Umidade do solo: " + String(umidSolo) + " %.\n", "");
     }
+    if(text == "/stopsensores"){
+      //deve parar de enviar dados para o thingSpeak
+      controle = false;
+      bot.sendMessage(chat_id, "Parado o envio de dados para o ThingSpeak.\n", "");
+    }
+    if(text == "/startsensores"){
+      //deve iniciar a enviar dados para o thingSpeak
+      controle = true;
+      bot.sendMessage(chat_id, "Reiniciado o envio de dados para o ThingSpeak.\n", "");
+    }
+    if(text == "/statussensores"){
+      String result = "";
+      if(controle == true){
+         result = "ativos";
+      }else if (controle == false){
+        result = "inativos";
+      }
+      bot.sendMessage(chat_id, "Os sensores estão: " + result +". \n", "");
+    }
 
    if (text == "/start"){
       String welcome = "Bem-vindo ao Sistema IoT da Floricultura, " + from_name + ".\n";
@@ -49,7 +72,9 @@ void handleNewMessages(int numNewMessages){
       welcome += "/getumidatm : Para receber dados da Umidade do Ar;\n";
       welcome += "/getumidsolo : Para receber dados da Umidade Solo;\n";
       welcome += "/getlum : Para receber dados da Luminosidade;\n";
-      welcome += "/stopsensores : Pausa o envio de dados de todos os sensores;\n";
+      welcome += "/stopsensores : Pausa o envio de dados de todos os sensores para o ThingSpeak;\n";
+      welcome += "/startsensores : Reinicia o envio de dados de todos os sensores para o ThingSpeak;\n";
+      welcome += "/statussensores : informa se está ou não enviando dados para o ThingSpeak;\n";
       bot.sendMessage(chat_id, welcome, "Markdown");
     }
 
@@ -112,7 +137,27 @@ void setup(){
 
 void loop(){
     
-   if (client.connect(server,80)){  
+   
+
+   if(millis()>Bot_lasttime + Bot_mtbs){
+     int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+     while(numNewMessages){
+        Serial.println("\nResposta recebida pelo Telegram! \n");
+        handleNewMessages(numNewMessages);
+        numNewMessages=bot.getUpdates(bot.last_message_received + 1);
+     }
+     Bot_lasttime = millis();
+     }
+
+     if(controle == true){
+      //deve estar depois do Telegram
+      thingSpeak();
+     }
+      
+}
+
+void thingSpeak(){
+  if (client.connect(server,80)){  
     String postStr = apiKey;
     float umidSolo = sensorUmidadeSolo();
                              postStr +="&field4="; //<-- atenção, esse é o campo 1 que você escolheu no canal do ThingSpeak
@@ -140,14 +185,4 @@ void loop(){
   
   // thingspeak needs minimum 15 sec delay between updates, i've set it to 20 seconds
   delay(20000);
-
-   if(millis()>Bot_lasttime + Bot_mtbs){
-     int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-     while(numNewMessages){
-        Serial.println("\nResposta recebida pelo Telegram! \n");
-        handleNewMessages(numNewMessages);
-        numNewMessages=bot.getUpdates(bot.last_message_received + 1);
-     }
-     Bot_lasttime = millis();
-     }
-   }
+}
