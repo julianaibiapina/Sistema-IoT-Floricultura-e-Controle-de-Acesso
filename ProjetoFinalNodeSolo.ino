@@ -12,7 +12,7 @@ const char *pass = "u6p7yt5w"; // senha do roteador WIFI
 const char* server = "api.thingspeak.com";
 
 // Inicializa o BOT Telegram - copie aqui a chave Token quando configurou o seu BOT - entre
-#define BOTtoken "799701394:AAFRYqvV1Fe7nNOj89gcDAdZTq4ZvLG3NRw" // sua chave
+#define BOTtoken "787733932:AAEen1sPZrgx26qKz9fU6s_GehY6rOMIWOk" // sua chave
 
 WiFiClientSecure clientSecure;
 WiFiClient client;
