@@ -1,67 +1,63 @@
+#include <DHT.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <UniversalTelegramBot.h>
-const char *ssid = "brisa-410363"; 
-const char *pass = "u6p7yt5w";
 
-#define BOTtoken "787733932:AAEen1sPZrgx26qKz9fU6s_GehY6rOMIWOk"
+String apiKey = "E0KGERS52X48ZC29";     //  <-- seu Write API key do site ThingSpeak
 
-WiFiClientSecure client;
+// Inicializando a conexao WIFI com o Roteador
+const char *ssid = "brisa-410363"; // nome do seu roteador WIFI (SSID)
+const char *pass = "u6p7yt5w"; // senha do roteador WIFI
+const char* server = "api.thingspeak.com";
 
-UniversalTelegramBot bot(BOTtoken, client);
+// Inicializa o BOT Telegram - copie aqui a chave Token quando configurou o seu BOT - entre
+#define BOTtoken "799701394:AAFRYqvV1Fe7nNOj89gcDAdZTq4ZvLG3NRw" // sua chave
+
+WiFiClientSecure clientSecure;
+WiFiClient client;
+
+UniversalTelegramBot bot(BOTtoken, clientSecure);
 
 int Bot_mtbs = 1000; // tempo entre a leitura das mensagens
 long Bot_lasttime; // ultima mensagem lida
 bool Start = false;
 
-//---------------------------FUNÇÕES----------------------------//
 
 void handleNewMessages(int numNewMessages){
 
-  Serial.print("Mensagem recebida = ");
-  Serial.println(String(numNewMessages));
-
-  for(int i = 0; i < numNewMessages; i++){
-    String chat_id = String(bot.messages[i].chat_id);
-    String text = bot.messages[i].text;
-    String from_name = bot.messages[i].from_name;
+ Serial.print("Mensagem recebida = ");
+ Serial.println(String(numNewMessages));
+ 
+   for (int i = 0; i < numNewMessages; i++){
+      String chat_id = String(bot.messages[i].chat_id);
+      String text = bot.messages[i].text;
+      String from_name = bot.messages[i].from_name;
       
-    if (from_name == "") from_name = "Guest";
+   if (from_name == "") from_name = "Guest";
 
     if(text == "/getumidsolo"){
       float umidSolo = sensorUmidadeSolo();
       bot.sendMessage(chat_id, "Umidade do solo: " + String(umidSolo) + " %.\n", "");
     }
-    if (text == "/start"){
+
+   if (text == "/start"){
       String welcome = "Bem-vindo ao Sistema IoT da Floricultura, " + from_name + ".\n";
       welcome += "Por favor, escolha um dos comandos a seguir:\n\n";
+      welcome += "/getsensores : Para receber dados de todos os sensores;\n";
       welcome += "/gettemp : Para receber dados da Temperatura;\n";
       welcome += "/getumidatm : Para receber dados da Umidade do Ar;\n";
       welcome += "/getumidsolo : Para receber dados da Umidade Solo;\n";
       welcome += "/getlum : Para receber dados da Luminosidade;\n";
+      welcome += "/stopsensores : Pausa o envio de dados de todos os sensores;\n";
       bot.sendMessage(chat_id, welcome, "Markdown");
     }
-  }
-}
 
-
-// REALIZA A CONEXÃO COM UMA REDE WI-FI
-void conexaoWifi(){
-  client.stop();
-  Serial.print("Conectando-se à rede ");
-  Serial.print(ssid);
-  Serial.println("... \n");
-  
-  WiFi.begin(ssid, pass);
-  while (WiFi.status() != WL_CONNECTED){
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi conectado");
-}
-
+    
+   
+   
+   }
+ }
 
 // REALIZA A LEITURA DO SENSOR E CONVERTE PARA UM VALOR PERCENTUAL
 //Observação: o ADC do NodeMCU permite até, no máximo, 3.3V. Dessa forma,
@@ -99,26 +95,59 @@ float sensorUmidadeSolo(){
 
 
 void setup(){
- 
   Serial.begin(115200);
-  conexaoWifi();
+  delay(10);
   
+  Serial.println("Conectando-se à rede: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED){
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("Conexão Wi-Fi iniciada.");
 }
 
 void loop(){
-  //sensorUmidadeSolo();
-  //delay(1000);
+    
+   if (client.connect(server,80)){  
+    String postStr = apiKey;
+    float umidSolo = sensorUmidadeSolo();
+                             postStr +="&field4="; //<-- atenção, esse é o campo 1 que você escolheu no canal do ThingSpeak
+                             postStr += String(umidSolo);
+                             postStr += "\r\n\r\n";
+ 
+                             client.print("POST /update HTTP/1.1\n");
+                             client.print("Host: api.thingspeak.com\n");
+                             client.print("Connection: close\n");
+                             client.print("X-THINGSPEAKAPIKEY: "+apiKey+"\n");
+                             client.print("Content-Type: application/x-www-form-urlencoded\n");
+                             client.print("Content-Length: ");
+                             client.print(postStr.length());
+                             client.print("\n\n");
+                             client.print(postStr);
 
+                             Serial.print("Umidade do solo: ");
+                             Serial.print(umidSolo);
+                            
+                             //Send to Thingspeak.");
+                        }
+          client.stop();
+ 
+          Serial.println("\nWaiting...");
+  
+  // thingspeak needs minimum 15 sec delay between updates, i've set it to 20 seconds
+  delay(20000);
 
-  if(millis()>Bot_lasttime + Bot_mtbs){
+   if(millis()>Bot_lasttime + Bot_mtbs){
      int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
      while(numNewMessages){
-        Serial.println("\n Resposta recebida pelo Telegram! \n");
+        Serial.println("\nResposta recebida pelo Telegram! \n");
         handleNewMessages(numNewMessages);
         numNewMessages=bot.getUpdates(bot.last_message_received + 1);
      }
      Bot_lasttime = millis();
-  }
-
-}
-
+     }
+   }
